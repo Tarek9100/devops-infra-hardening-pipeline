@@ -16,7 +16,7 @@ This project showcases a complete infrastructure automation and system hardening
 
 ## Repo Structure
 ```
-tarek.zaki/
+devops-infra-hardening-pipeline/
 ├── Vagrantfile
 ├── jenkins
 │	└── Jenkinsfile
@@ -111,6 +111,6 @@ tarek.zaki/
 ![Architecture Diagram](architecture.png)
 ---
 
-**Candidate:** Tarek Zaki  
+**Author:** Tarek Zaki  
 **Email:** <tareki9100@gmail.com>  
-**GitHub Repo:** https://github.com/Tarek910/tarek.zaki
+**GitHub Repo:** https://github.com/Tarek9100/devops-infra-hardening-pipeline
