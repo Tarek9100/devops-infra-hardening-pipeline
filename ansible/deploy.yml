@@ -1,0 +1,6 @@
+i---
+- hosts: all
+  become: yes
+  roles:
+    - apache_setup
+

@@ -1,0 +1,61 @@
+pipeline {
+    agent any
+
+    environment {
+        DEPLOY_SERVER = "192.168.56.12"
+        SSH_USER = "vagrant"
+        TAR_PATH = "nginx-custom.tar"
+        ANSIBLE_PLAYBOOK = "deploy.yml"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Run Apache Playbook') {
+            steps {
+                sh '''
+                export PATH=$PATH:/usr/bin
+                ansible-playbook -i ${DEPLOY_SERVER}, -u ${SSH_USER} --ssh-extra-args="-o StrictHostKeyChecking=no" ${ANSIBLE_PLAYBOOK}
+                '''
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                sh '''
+                docker build -t nginx-custom .
+                docker save nginx-custom > ${TAR_PATH}
+                '''
+            }
+        }
+
+        stage('Email Notification') {
+            steps {
+                script {
+                    def date = sh(script: "date", returnStdout: true).trim()
+                    def users = sh(script: "ssh ${SSH_USER}@${DEPLOY_SERVER} 'bash ~/NotGroupMembers.sh'", returnStdout: true).trim()
+
+                    emailext (
+                        subject: "Pipeline Execution Report: ${env.JOB_NAME}",
+                        body: """
+Pipeline execution completed.
+
+Status: SUCCESS
+Date/Time: ${date}
+Users not in deployG:
+${users}
+
+Docker image saved at: ${TAR_PATH}
+                        """,
+                        to: "tareki9100@gmail.com"
+                    )
+                }
+            }
+        }
+    }
+}
+

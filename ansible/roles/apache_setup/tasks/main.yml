@@ -1,0 +1,111 @@
+    - name: Install Apache
+      yum:
+        name: httpd
+        state: present
+
+    - name: Ensure mod_headers is enabled
+      lineinfile:
+        path: /etc/httpd/conf/httpd.conf
+        line: 'LoadModule headers_module modules/mod_headers.so'
+        insertafter: '^# LoadModule'
+        state: present
+      notify: Restart Apache
+
+    - name: Remove default welcome page
+      file:
+        path: /etc/httpd/conf.d/welcome.conf
+        state: absent
+
+    - name: Create web root directory
+      file:
+        path: "{{ apache_root }}"
+        state: directory
+        owner: apache
+        group: apache
+        mode: '0755'
+
+    - name: Deploy index.html to custom web root
+      copy:
+        src: index.html
+        dest: "{{ apache_root }}/index.html"
+        owner: apache
+        group: apache
+        mode: '0644'
+
+    - name: Remove old <Directory /var/www> block
+      replace:
+        path: /etc/httpd/conf/httpd.conf
+        regexp: '<Directory "/var/www".*?</Directory>'
+        replace: ''
+        backup: yes
+
+    - name: Set DocumentRoot to /srv/www
+      lineinfile:
+        path: /etc/httpd/conf/httpd.conf
+        regexp: '^DocumentRoot'
+        line: 'DocumentRoot "{{ apache_root }}"'
+        backup: yes
+
+    - name: Insert <Directory /srv/www> block with restrictions
+      blockinfile:
+        path: /etc/httpd/conf/httpd.conf
+        marker: "# {mark} SRV-WWW ACCESS"
+        block: |
+          <Directory "{{ apache_root }}">
+              Require ip {{ allowed_ip }}
+              Options Indexes FollowSymLinks
+              AllowOverride None
+          </Directory>
+      notify: Restart Apache
+
+    - name: Add security headers
+      blockinfile:
+        path: /etc/httpd/conf/httpd.conf
+        marker: "# {mark} SECURITY HEADERS"
+        block: |
+          Header always set X-Content-Type-Options "nosniff"
+          Header always set X-Frame-Options "SAMEORIGIN"
+          Header always set X-XSS-Protection "1; mode=block"
+      notify: Restart Apache
+
+    - name: Disable ServerTokens
+      lineinfile:
+        path: /etc/httpd/conf/httpd.conf
+        regexp: '^ServerTokens'
+        line: 'ServerTokens Prod'
+      notify: Restart Apache
+
+    - name: Disable ServerSignature
+      lineinfile:
+        path: /etc/httpd/conf/httpd.conf
+        regexp: '^ServerSignature'
+        line: 'ServerSignature Off'
+      notify: Restart Apache
+
+    - name: Add custom log format
+      blockinfile:
+        path: /etc/httpd/conf/httpd.conf
+        marker: "# {mark} CUSTOM LOG FORMAT"
+        block: |
+          LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" custom
+          CustomLog /var/log/httpd/access_log custom
+      notify: Restart Apache
+
+    - name: Configure logrotate for Apache logs
+      copy:
+        dest: /etc/logrotate.d/httpd
+        content: |
+          /var/log/httpd/*log {
+              daily
+              missingok
+              rotate 14
+              compress
+              delaycompress
+              notifempty
+              create 0640 root root
+              sharedscripts
+              postrotate
+                  /bin/systemctl reload httpd > /dev/null 2>/dev/null || true
+              endscript
+          }
+
